@@ -121,7 +121,7 @@ pub fn start_container(image_id: &str, options: &[&str]) -> Result<String> {
 
     Ok(
         run(cmd.arg(image_id))?
-            .trim()
+            .trim()[..12]
             .to_owned()
     )
 }
