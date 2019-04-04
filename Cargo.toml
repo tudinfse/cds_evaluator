@@ -1,0 +1,16 @@
+[package]
+name = "cds_evaluator"
+version = "0.1.0"
+authors = ["Franz Gregor <franz.gregor@tu-dresden.de>"]
+edition = "2018"
+
+[dependencies]
+clap = "*"
+error-chain = "*"
+log = "*"
+env_logger = "*"
+
+reqwest = "*"
+base64 = "*"
+
+serde = { version = "*", features = ["derive"] }
