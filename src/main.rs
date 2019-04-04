@@ -137,14 +137,16 @@ fn run() -> Result<()> {
                         &["--cpuset-cpus", cpuset.as_str(),
                         "-p", port.to_string().as_str(),
                         "-e", format!("MAX_CPUS={}", cpu_count).as_str(),
-                        "-e", format!("REST_PORT={}", port).as_str()
+                        "-e", format!("CDS_PORT={}", port).as_str()
                 ])
                     .chain_err(|| "Starting of measurement container failed")?;
 
                 // ensure container does not keep running
-                finally! {{
-                    docker::stop_container(cid.as_str(), true);
-                }}
+                // TODO The finally! macro apparently doesn't work anymore with the new rust version
+                // directly terminating the container after it started.
+                // finally! {{
+                //     docker::stop_container(cid.as_str(), false);
+                // }}
 
                 let (stdout, stderr, exit_status, duration) = run::run(cid.as_str(), port, program, input.as_slice())
                     .chain_err(|| "Measuring failed")?;
@@ -165,6 +167,9 @@ fn run() -> Result<()> {
                         );
                     }
                 }
+
+                docker::stop_container(cid.as_str(), true)
+                    .chain_err(|| "Deleting container failed!")?;
 
                 println!("{}; {}; {}; {}", program, r, cpu_count, duration);
             }
