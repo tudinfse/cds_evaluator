@@ -137,7 +137,8 @@ fn run() -> Result<()> {
                         &["--cpuset-cpus", cpuset.as_str(),
                         "-p", port.to_string().as_str(),
                         "-e", format!("MAX_CPUS={}", cpu_count).as_str(),
-                        "-e", format!("CDS_PORT={}", port).as_str()
+                        "-e", format!("CDS_PORT={}", port).as_str(),
+                        "-e", format!("REST_PORT={}", port).as_str()
                 ])
                     .chain_err(|| "Starting of measurement container failed")?;
 
