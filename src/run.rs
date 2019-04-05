@@ -31,12 +31,17 @@ pub fn run(container_id: &str, port: u16, program: &str, stdin: &[u8]) -> Result
         stdin: base64::encode(stdin),
     };
 
-    let response: InvokeResponseBody = reqwest::Client::new()
+    let response: InvokeResponseBody = reqwest::ClientBuilder::new()
+        .timeout(None)
+        .build()?
+
         .post(format!("http://{}/run/{}", addr, program).as_str())
         .json(&req_body)
         .send()
-        .chain_err(|| "")?
-        .json()?;
+        .chain_err(|| "Server issue")?
+
+        .json()
+        .chain_err(|| "Server response could not be parsed")?;
 
     Ok((response.stdout, response.stderr, response.exit_status, response.duration))
 }
