@@ -121,8 +121,7 @@ fn run() -> Result<()> {
                 }
             })?;
 
-        println!("program; run; cpus; duration;");
-
+        let mut have_header_already = false;
         for r in 0..runs {
             for cpu_count in cpu_counts.iter() {
                 // generate cpuset argument
@@ -138,6 +137,7 @@ fn run() -> Result<()> {
                         "-p", port.to_string().as_str(),
                         "-e", format!("MAX_CPUS={}", cpu_count).as_str(),
                         "-e", format!("CDS_PORT={}", port).as_str(),
+                        "-e", "RUST_LOG=debug",
                         "-e", format!("REST_PORT={}", port).as_str()
                 ])
                     .chain_err(|| "Starting of measurement container failed")?;
@@ -172,6 +172,10 @@ fn run() -> Result<()> {
                 docker::stop_container(cid.as_str(), true)
                     .chain_err(|| "Deleting container failed!")?;
 
+                if ! have_header_already {
+                    println!("program; run; cpus; duration;");
+                    have_header_already = true;
+                }
                 println!("{}; {}; {}; {}", program, r, cpu_count, duration);
             }
         }
