@@ -42,6 +42,15 @@ pub fn run(container_id: &str, port: u16, program: &str, stdin: &[u8]) -> Result
 
         .json()
         .chain_err(|| "Server response could not be parsed")?;
+    
+    if response.error.is_some() {
+        return Err(response.error.unwrap().into())
+    }
 
-    Ok((response.stdout, response.stderr, response.exit_status, response.duration))
+    Ok((
+        String::from_utf8_lossy(base64::decode(&response.stdout).chain_err(|| "Could not decode stdout")?.as_slice()).into_owned(),
+        String::from_utf8_lossy(base64::decode(&response.stderr).chain_err(|| "Could not decode stderr")?.as_slice()).into_owned(),
+        response.exit_status,
+        response.duration
+    ))
 }
