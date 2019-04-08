@@ -1,0 +1,5 @@
+This directory contains tasks that we can evaluate.
+Each subdirectory holds an individual task.
+Files ending with `.in` will be used as input to the program, while the output is compared against the respective `.out` file's content.
+
+Tasks in directories starting with `mopp` are taken from the Marathon of Parallel Programming (http://lspd.mackenzie.br/marathon/).
