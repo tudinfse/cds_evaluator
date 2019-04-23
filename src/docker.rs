@@ -140,3 +140,11 @@ pub fn stop_container(container_id: &str, remove: bool) -> Result<()> {
 
     Ok(())
 }
+
+pub fn get_container_log(container_id: &str) -> Result<String> {
+    let mut cmd = Command::new("docker");
+
+    Ok(run(cmd.arg("logs")
+        .arg("-t")
+        .arg(container_id))?)
+}

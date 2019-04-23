@@ -24,7 +24,11 @@ pub fn run(container_id: &str, port: u16, program: &str, stdin: &[u8]) -> Result
 
     let addr = match docker::get_public_addr(container_id.as_str(), port)? {
         Some(addr) => addr,
-        None => bail!("Unable to find public address of cds server running in container {}. Is the port exposed?", container_id),
+        None => bail!("Unable to find public address of cds server running in container {}. Is the port exposed?\nContainer Log:\n{}",
+            container_id,
+            docker::get_container_log(container_id.as_ref())
+                .unwrap_or_else(|err| format!("Unable to obtain log: {}", err))
+        ),
     };
 
     let req_body = InvokeRequestBody {
@@ -38,13 +42,24 @@ pub fn run(container_id: &str, port: u16, program: &str, stdin: &[u8]) -> Result
         .post(format!("http://{}/run/{}", addr, program).as_str())
         .json(&req_body)
         .send()
-        .chain_err(|| "Server issue")?
+        .chain_err(||   format!(
+                                "Server Communication Issue\nServer Container Log:\n{}",
+                                docker::get_container_log(container_id.as_ref())
+                                    .unwrap_or_else(|err| format!("Unable to obtain log: {}", err))
+                        )
+        )?
 
         .json()
-        .chain_err(|| "Server response could not be parsed")?;
+        .chain_err(||   format!(
+                                "Server Response could not be parsed\nServer Container Log:\n{}",
+                                docker::get_container_log(container_id.as_ref())
+                                    .unwrap_or_else(|err| format!("Unable to obtain log: {}", err))
+                        )
+        )?;
     
     if response.error.is_some() {
-        return Err(response.error.unwrap().into())
+        return Err(response.error.unwrap().into());
+            //.chain_err(|| "The Server experienced an error while processing the request.");
     }
 
     Ok((
