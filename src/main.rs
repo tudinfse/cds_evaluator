@@ -5,6 +5,8 @@ extern crate error_chain;
 #[macro_use]
 extern crate serde;
 
+use std::time::{Duration, SystemTime};
+
 error_chain!(
     foreign_links {
         ReqwestError(reqwest::Error);
@@ -32,6 +34,11 @@ macro_rules! finally {
     };
 }
 
+enum RepetitionType {
+    FixedAmount(u8),
+    Deadline(SystemTime),
+}
+
 fn run() -> Result<()> {
     env_logger::init();
 
@@ -48,6 +55,14 @@ fn run() -> Result<()> {
         .arg_from_usage("-m --measure 'Measure-mode, run multiple times and output csv-like data (duration in micro seconds)'")
         .arg_from_usage("-c --cpus=[cpus] 'Number of cpus the application is allowed to use (can be a comma-separated list in measure-mode) [default: 1,2,4]'")
         .arg_from_usage("-r --runs=[runs] 'Number of runs to average the program runtime (only in measure-mode) [default: 3]'")
+        .arg(
+            clap::Arg::with_name("budget")
+      .short("b")
+      .long("budget")
+      .takes_value(true)
+      .value_name("budget")
+      .help("Evaluation budget in minutes, conflicts with runs. If set the evaluation is repeated as long as there is still budget available")
+            .conflicts_with("runs"))
         .arg_from_usage("<program> 'The program to start'")
         .group(clap::ArgGroup::with_name("unit-under-test")
             .args(&["image", "container"])
@@ -99,11 +114,24 @@ fn run() -> Result<()> {
         let image_id = cli_arg_matches
             .value_of("image")
             .expect("image is strictly necessary in measure-mode!");
-        let runs = cli_arg_matches
-            .value_of("runs")
-            .unwrap_or("3")
-            .parse()
-            .chain_err(|| "Given runs is not a number")?;
+        let reps = match (cli_arg_matches.value_of("runs"), cli_arg_matches.value_of("budget")) {
+            (None, None) => RepetitionType::FixedAmount(1),
+            (Some(runs), None) => RepetitionType::FixedAmount(runs.parse().chain_err(|| "Given runs is not a number")?),
+            (None, Some(budget)) => {
+                let budget = Duration::from_secs(
+                    budget
+                        .parse()
+                        .map(|min: u64| min * 60)
+                        .chain_err(|| "Given budget is not a number")?
+                );
+                RepetitionType::Deadline(
+                    SystemTime::now()
+                        .checked_add(budget)
+                        .expect("Can not calculate budget. Underlying datatype overflow.")
+                )
+            },
+            (Some(_), Some(_)) => panic!("Can't handle budget and runs together! This was supposed to be handled by clap.")
+        };
         let cpu_counts = cli_arg_matches
             .value_of("cpus")
             .unwrap_or("1,2,4")
@@ -122,7 +150,25 @@ fn run() -> Result<()> {
             })?;
 
         let mut have_header_already = false;
-        for r in 0..runs {
+        let mut run = 0u8;
+        let mut last_run_duration = None;
+        loop {
+            let run_start = SystemTime::now();
+            run += 1;
+            let terminate = match (&reps, last_run_duration) {
+                (RepetitionType::FixedAmount(ref runs), _) => &run > runs,
+                (RepetitionType::Deadline(_), None) => false,
+                (RepetitionType::Deadline(ref deadline), Some(last_run_duration)) => {
+                    let expected_end = run_start
+                        .checked_add(last_run_duration)
+                        .expect("Can not calculate expected end. Underlying datatype overflow.");
+                    &expected_end > deadline
+                }
+            };
+            if terminate {
+                break;
+            }
+
             for cpu_count in cpu_counts.iter() {
                 // generate cpuset argument
                 let cpuset = (0..*cpu_count)
@@ -176,7 +222,12 @@ fn run() -> Result<()> {
                     println!("program; run; cpus; duration;");
                     have_header_already = true;
                 }
-                println!("{}; {}; {}; {}", program, r, cpu_count, duration);
+                println!("{}; {}; {}; {}", program, run, cpu_count, duration);
+
+                last_run_duration = Some(
+                    run_start.elapsed().
+                        chain_err(|| "Unable to measure experiment duration")?
+                );
             }
         }
     } else {
